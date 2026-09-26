@@ -2,16 +2,21 @@ import json
 import os
 import time
 from typing import Any, Dict, List, Tuple
+
 from google import genai
 from google.genai import types
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "GOOGLE_APPLICATION_CREDENTIALS"
+
+os.environ["API_CREDENTIALS"] = "YOUR_CREDENTIALS"
 
 
-class RecruitmentExampleGenerator:
-
+class ExampleGenerator:
     def __init__(
-        self, project_id: str, location: str, model_id: str, prompt_file: str
+        self,
+        project_id: str,
+        location: str,
+        model_id: str,
+        prompt_file: str,
     ):
         self.client = genai.Client(
             vertexai=True,
@@ -19,34 +24,55 @@ class RecruitmentExampleGenerator:
             location=location,
         )
         self.model_id = model_id
-        self.system_prompt = self._load_system_prompt(prompt_file)
+        self.system_prompt = self.load_system_prompt(prompt_file)
 
-    def _load_system_prompt(self, prompt_file: str) -> str:
-        encodings = ["utf-8", "utf-8-sig", "gbk", "gb2312", "latin1"]
+    def load_system_prompt(self, prompt_file: str) -> str:
+        encodings = [
+            "utf-8",
+            "utf-8-sig",
+            "gbk",
+            "gb2312",
+            "latin1",
+        ]
 
-        for enc in encodings:
+        for encoding in encodings:
             try:
-                with open(prompt_file, "r", encoding=enc) as f:
-                    prompt = f.read().strip()
-                print(f" Loaded prompt with {enc}")
+                with open(prompt_file, "r", encoding=encoding) as file:
+                    prompt = file.read().strip()
+
+                print(f"Loaded prompt using {encoding}.")
                 return prompt
+
             except UnicodeDecodeError:
-                print(f"Failed with {enc}")
+                print(f"Could not decode prompt using {encoding}.")
                 continue
 
         with open(
-            prompt_file, "r", encoding="utf-8", errors="ignore"
-        ) as f:
-            prompt = f.read().strip()
-        print(" Used utf-8 with errors=ignore")
+            prompt_file,
+            "r",
+            encoding="utf-8",
+            errors="ignore",
+        ) as file:
+            prompt = file.read().strip()
+
+        print("Loaded prompt using utf-8 with ignored decoding errors.")
         return prompt
 
     def call_api(
-        self, query: str, skill_text: str, max_retries: int = 3
+        self,
+        query: str,
+        candidate_text: str,
+        max_retries: int = 3,
     ) -> str:
-        user_content = f"{query}\n\nSkill Label Space:\n{skill_text}"
+        user_content = (
+            f"{query}\n\n"
+            f"Candidate Label Space:\n{candidate_text}"
+        )
 
-        print(f"API: query({len(query)})+skills({len(skill_text)})")
+        print(
+            f"Calling API with query length {len(query)} "
+            f"and candidate-text length {len(candidate_text)}."
+        )
 
         for attempt in range(max_retries):
             try:
@@ -57,173 +83,262 @@ class RecruitmentExampleGenerator:
                         system_instruction=self.system_prompt,
                     ),
                 )
+
                 if response.text:
                     content = response.text.strip()
-                    print(f" API OK: {content[:200]}...")
+                    print(f"API call succeeded: {content[:200]}...")
                     return content
-                else:
-                    raise Exception("Empty response received from Gemini API")
 
-            except Exception as e:
-                print(f"Attempt {attempt+1} failed: {e}")
+                raise RuntimeError("Received an empty API response.")
+
+            except Exception as error:
+                print(
+                    f"Attempt {attempt + 1}/{max_retries} failed: "
+                    f"{error}"
+                )
+
                 if attempt < max_retries - 1:
                     time.sleep(attempt * 3 + 3)
-                else:
-                    break
 
-        raise Exception("Gemini API failed after retries")
+        raise RuntimeError("API call failed after all retry attempts.")
 
     def load_data(
-        self, file_path: str
-    ) -> Tuple[List[str], List[List[int]], List[List[Dict]]]:
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        self,
+        file_path: str,
+    ) -> Tuple[List[str], List[List[int]], List[List[Dict[str, Any]]]]:
+        with open(file_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
 
         queries = []
-        ori_labels = []
-        rerank_results_list = []
+        reference_labels = []
+        ranked_candidates_list = []
 
-        for idx, entry in enumerate(data):
+        for entry in data:
             queries.append(entry.get("query", ""))
-            label_str = entry.get("ori_label", "")
+
+            raw_labels = entry.get(
+                "reference_label",
+                entry.get("ori_label", ""),
+            )
+
             labels = []
 
-            if isinstance(label_str, str):
-                label_str_clean = label_str.strip()
-                if label_str_clean: 
+            if isinstance(raw_labels, str):
+                cleaned_labels = raw_labels.strip()
+
+                if cleaned_labels:
                     try:
-                        labels = json.loads(label_str_clean)
-                    except json.JSONDecodeError as e:
+                        labels = json.loads(cleaned_labels)
+
+                    except json.JSONDecodeError as error:
                         print(
-                            f"fAILURE: {e}"
+                            f"Could not parse reference labels: {error}"
                         )
                         labels = []
-            elif isinstance(label_str, (list, tuple)):
-                labels = label_str
 
-            parsed_ori_label = []
+            elif isinstance(raw_labels, (list, tuple)):
+                labels = raw_labels
+
+            parsed_labels = []
+
             if isinstance(labels, list):
-                for x in labels:
+                for label in labels:
                     try:
-                        parsed_ori_label.append(int(x))
+                        parsed_labels.append(int(label))
                     except (ValueError, TypeError):
                         continue
 
-            ori_labels.append(parsed_ori_label)
-            rerank_results_list.append(entry.get("rerank_results", []))
+            reference_labels.append(parsed_labels)
 
-        print(f" Loaded {len(queries)} samples from {file_path}")
-        return queries, ori_labels, rerank_results_list
+            ranked_candidates_list.append(
+                entry.get(
+                    "ranked_candidates",
+                    entry.get("rerank_results", []),
+                )
+            )
 
-    def load_skills(self, skill_file: str) -> List[str]:
-        with open(skill_file, "r", encoding="utf-8") as f:
-            skills = [line.strip() for line in f if line.strip()]
-        print(f" Loaded {len(skills)} skills (0-{len(skills)-1})")
-        return skills
+        print(f"Loaded {len(queries)} examples from {file_path}.")
 
-    def get_skill_text(
-        self, rerank_results: List[Dict], skills: List[str], top_k: int
+        return queries, reference_labels, ranked_candidates_list
+
+    def load_candidate_space(self, candidate_file: str) -> List[str]:
+        with open(candidate_file, "r", encoding="utf-8") as file:
+            candidates = [
+                line.strip()
+                for line in file
+                if line.strip()
+            ]
+
+        print(
+            f"Loaded {len(candidates)} candidate labels "
+            f"(indices 0 to {len(candidates) - 1})."
+        )
+
+        return candidates
+
+    def get_candidate_text(
+        self,
+        ranked_candidates: List[Dict[str, Any]],
+        candidates: List[str],
+        top_k: int,
     ) -> str:
         indices = []
-        for result in rerank_results[:top_k]:
-            doc_id = str(result.get("document_content", "")).strip()
-            if doc_id.isdigit():
-                idx = int(doc_id) - 1
-                if 0 <= idx < len(skills):
-                    indices.append(idx)
 
-        unique = []
-        seen = set()
-        for idx in indices:
-            if idx not in seen:
-                unique.append(idx)
-                seen.add(idx)
+        for result in ranked_candidates[:top_k]:
+            document_id = str(
+                result.get("document_content", "")
+            ).strip()
 
-        skill_texts = [skills[idx] for idx in unique]
-        return " / ".join(skill_texts)
+            if document_id.isdigit():
+                index = int(document_id) - 1
+
+                if 0 <= index < len(candidates):
+                    indices.append(index)
+
+        unique_indices = []
+        seen_indices = set()
+
+        for index in indices:
+            if index not in seen_indices:
+                unique_indices.append(index)
+                seen_indices.add(index)
+
+        selected_candidates = [
+            candidates[index]
+            for index in unique_indices
+        ]
+
+        return " / ".join(selected_candidates)
 
     def process_file(
-        self, input_file: str, skill_file: str, output_file: str, top_k: int
+        self,
+        input_file: str,
+        candidate_file: str,
+        output_file: str,
+        top_k: int,
     ):
-        print(f"\n{'='*60}")
-        print(f"Processing: {os.path.basename(input_file)} (Top-K: {top_k})")
-        print(f"{'='*60}")
+        print("\n" + "=" * 60)
+        print(
+            f"Processing file: {os.path.basename(input_file)} "
+            f"(Top-K: {top_k})"
+        )
+        print("=" * 60)
 
         if not os.path.exists(input_file):
-            print(" Input file not found")
+            print(f"Input file was not found: {input_file}")
             return
 
-        queries, ori_labels, rerank_results_list = self.load_data(input_file)
-        skills = self.load_skills(skill_file)
+        queries, reference_labels, ranked_candidates_list = (
+            self.load_data(input_file)
+        )
 
+        candidates = self.load_candidate_space(candidate_file)
         results = []
-        for i, (query, ori_label, rerank) in enumerate(
-            zip(queries, ori_labels, rerank_results_list)
+
+        for index, (query, reference_label, ranked_candidates) in enumerate(
+            zip(
+                queries,
+                reference_labels,
+                ranked_candidates_list,
+            )
         ):
             try:
-                print(f"[{i+1}/{len(queries)}] Processing...")
-                skill_text = self.get_skill_text(rerank, skills, top_k)
+                print(
+                    f"Processing example "
+                    f"{index + 1}/{len(queries)}."
+                )
 
-                if not skill_text:
-                    skill_text = "No skills"
+                candidate_text = self.get_candidate_text(
+                    ranked_candidates,
+                    candidates,
+                    top_k,
+                )
 
-                api_result = self.call_api(query, skill_text)
+                if not candidate_text:
+                    candidate_text = "No candidate labels available."
+
+                api_result = self.call_api(
+                    query=query,
+                    candidate_text=candidate_text,
+                )
 
                 results.append(
                     {
                         "query": query,
-                        "ori_label": ori_label,
-                        "skill_text": skill_text,
+                        "reference_label": reference_label,
+                        "candidate_text": candidate_text,
                         "result": api_result,
                     }
                 )
 
-            except Exception as e:
-                print(f" Query {i+1} Error: {e}")
+            except Exception as error:
+                print(
+                    f"Error while processing example {index + 1}: "
+                    f"{error}"
+                )
+
                 results.append(
                     {
                         "query": query,
-                        "ori_label": ori_label,
-                        "result": str(e),
-                        "error": str(e),
+                        "reference_label": reference_label,
+                        "result": str(error),
+                        "error": str(error),
                     }
                 )
 
             time.sleep(1)
 
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+        output_directory = os.path.dirname(output_file)
+
+        if output_directory:
+            os.makedirs(output_directory, exist_ok=True)
+
+        with open(output_file, "w", encoding="utf-8") as file:
+            json.dump(
+                results,
+                file,
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        successful_count = len(
+            [
+                result
+                for result in results
+                if "error" not in result
+            ]
+        )
+
         print(
-            f" Saved {len([r for r in results if 'error' not in r])}/{len(results)} to {output_file}"
+            f"Saved {successful_count}/{len(results)} "
+            f"successfully processed examples to {output_file}."
         )
 
 
 def main():
-    CONFIG = {
-        "PROJECT_ID": "PROJECT_ID",
-        "LOCATION": "global",
-        "MODEL_ID": "gemini-2.5-flash",
-        "PROMPT_PATH": "PROMPT_PATH",
-        "SKILL_FILE": "SKILL_FILE",
-        "BASE_PATH": "BASE_PATH",
+    config = {
+        "PROJECT_ID": "YOUR_PROJECT_ID",
+        "LOCATION": "YOUR_REGION",
+        "MODEL_ID": "YOUR_MODEL_ID",
+        "PROMPT_PATH": "/path/to/prompt.txt",
+        "CANDIDATE_FILE": "/path/to/candidate_space.txt",
+        "INPUT_FILE": "/path/to/input.json",
+        "OUTPUT_FILE": "/path/to/output.json",
+        "TOP_K": 50,
     }
 
-    generator = RecruitmentExampleGenerator(
-        project_id=CONFIG["PROJECT_ID"],
-        location=CONFIG["LOCATION"],
-        model_id=CONFIG["MODEL_ID"],
-        prompt_file=CONFIG["PROMPT_PATH"],
+    generator = ExampleGenerator(
+        project_id=config["PROJECT_ID"],
+        location=config["LOCATION"],
+        model_id=config["MODEL_ID"],
+        prompt_file=config["PROMPT_PATH"],
     )
-    top_k = top_k
-    input_file = os.path.join(
-        CONFIG["BASE_PATH"], f"input.json"
-    )
-    output_file = os.path.join(
-        CONFIG["BASE_PATH"], f"out.json"
-    )
+
     generator.process_file(
-        input_file, CONFIG["SKILL_FILE"], output_file, top_k
+        input_file=config["INPUT_FILE"],
+        candidate_file=config["CANDIDATE_FILE"],
+        output_file=config["OUTPUT_FILE"],
+        top_k=config["TOP_K"],
     )
 
 
