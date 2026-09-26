@@ -1,0 +1,124 @@
+You are an expert annotator for extreme multi-label text classification.  
+Your task is to identify **all** skills from the given 'Skill Label Space' that are **explicitly or very clearly mentioned** in the job description.
+You must follow this reasoning procedure **step by step**, and the **final answer must strictly follow the required output format**.
+-----------------------------
+[Task Instructions]
+Given:
+1. A job description text.
+2. A 'Skill Label Space', which is a list of skill entries. Each entry has the form:
+   Skill <ID>: <short title>: <natural language definition>.
+Your goals:
+- Extract **skill-related text spans** from the job description first.
+- For each text span, match skills from Skill Label Space based on **context** and skill definitions.
+- Only select skills that are **directly or strongly implied**. Do **not** guess weak matches.
+-----------------------------
+[Reasoning Procedure (Chain-of-Thought)]
+**Step 1: Extract skill-related text spans**
+- Scan the entire job description.
+- Identify all phrases/sentences explicitly describing **skills, abilities, responsibilities**.
+- List them as: `Span 1: "quote text"`; `Span 2: "quote text"`, etc.
+**Step 2: Match each span to skills**
+For each span:
+- Based on its **original background context**, understand the skill it represents.
+- In Skill Label Space, search for skills where **name OR definition** closely matches the span's meaning, while considering the **full context** of the job description.
+- List matches: `Skill ID: reason why it matches this span`.
+**Step 3: Compile final list**
+- Remove duplicates across all spans.
+- Only include skills with **clear evidence**.
+-----------------------------
+[Output format: Output ONLY this structure]
+You must output **only one line** in the following format:
+The output should consist of the **Model's reasoning text** and **Result**.
+For the Model's reasoning text:
+Please first output the skill-related text spans extracted, then the matching process
+For the Result:
+- If at least one skill is relevant:  
+  '['ID_1';'ID_2'; ...]', ordered by match score (highest first).
+  where 'ID_k' is the **numeric skill ID** exactly as in the Skill Label Space (for example: `['13295';'6142';'1171']`).
+- If **no** skills are relevant:  
+  ['NaN']
+Rules:
+- Use semicolons `;` to separate IDs.
+- Numeric IDs only, no titles/definitions in Result.
+- Reasoning can be detailed, but Result must be **exact format**.
+-----------------------------
+[Examples]
+
+Example 1
+Job Description:
+Good experience of continual delivery pipeline tools ( Jenkins Ansible ..) Good verbal communication skills; able to articulate clearly to technical team members during agile ceremonies and to work with product owners in the elaboration of user stories
+
+Skill Label Space:
+Skill 1598: solution deployment: The technologies and standards to be used during the installation, deployment and maintenance of software characteristics. / 
+Skill 13295: Jenkins (tools for software configuration management): The tool Jenkins is a software program to perform configuration identification, control, status accounting and audit of software during its development and maintenance. / 
+Skill 2788: documentation types: The characteristics of internal and external documentation types aligned with the product life cycle and their specific content types. / 
+Skill 11942: Agile development: The agile development model is a methodology to design software systems and applications. / 
+Skill 12730: build trust: Express intentions and behaviour in a coherent and transparent manner, inviting reciprocity and establishing the grounds for a trusting and reliable connection between people and teams. / 
+Skill 1985: software frameworks: The software development environments or tools used to improve the efficiency of new software development by providing specific features that support and guide the development. / 
+Skill 6142: Ansible: The tool Ansible is a software program to perform configuration identification, control, status accounting and audit. / 
+Skill 7990: execute software tests: Perform tests to ensure that a software product will perform flawlessly under the specified customer requirements and identify software defects (bugs) and malfunctions, using specialised software tools and testing techniques. / 
+Skill 1253: utilise computer-aided software engineering tools: Use software tools (CASE) to support the development lifecycle, design and implementation of software and applications of high-quality that can be easily maintained. / 
+Skill 2864: Iterative development: The iterative development model is a methodology to design software systems and applications. / 
+Skill 1171: communication: The exchange and conveying of information, ideas, concepts, thoughts, and feelings through the use of a shared system of words, signs, and semiotic rules via a medium. / 
+Skill 825: communicate verbal instructions: Communicate transparent instructions. Ensure that messages are understood and followed correctly. / 
+Skill 13665: software metrics: The metrics that measure a characteristic of the software system in order to determine the development of the software and evaluate it.
+
+Output:
+**Model's reasoning text**  
+**Step 1: Extract skill-related text spans**
+Span 1: "Good experience of continual delivery pipeline tools ( Jenkins Ansible ..)"  
+Span 2: "Good verbal communication skills; able to articulate clearly to technical team members during agile ceremonies and to work with product owners in the elaboration of user stories"
+**Step 2: Match each span to skill labels**
+Span 1:  
+- Original context: tools in delivery pipeline.  
+- Skill 13295: Reason: "Jenkins" directly named, matches Jenkins tool definition for configuration management.  
+- Skill 6142: Reason: "Ansible" directly named, matches Ansible tool definition.  
+Span 2:  
+- Original context: communication in agile/team settings.  
+- Skill 1171: Reason: "Good verbal communication skills; able to articulate clearly" matches definition of exchanging information through words.  
+No other spans mention specific skills like testing, documentation, metrics, etc.
+**Step 3: Compile final list**
+- Removing duplicates, the clearly matched skills are: 13295, 6142, 1171
+
+Result: ['13295';'6142';'1171']
+
+Example 2
+Job Description:
+Perform molecular biology techniques in particular PCR restriction and cloning reactions and DNA/RNA and protein purification procedures.
+
+Skill Label Space:
+Skill 5376: biotechnology: The technology that uses, modifies or harnesses biological systems, organisms and cellular components to develop new technologies and products for specific uses. / 
+Skill 5281: laboratory methods in biomedical sciences: The types, characteristics and procedures of laboratory techniques used for a wide range of medical tests such as serological tests. / 
+Skill 7866: molecular biology: The interactions between the various systems of a cell, the interactions between the different types of genetic material and how these interactions are regulated. / 
+Skill 9268: biomedical techniques: The various methods and techniques used in biomedical laboratory such as molecular and biomedical techniques, imaging techniques, genetic engineering, electrophysiology techniques and in silico techniques. / 
+Skill 13658: regulate chemical reaction: Regulate the reaction by adjusting the steam and coolant valves so that the reaction is within the specified limits for explosion prevention. / 
+Skill 3717: detect microorganisms: Use various laboratory methods and tools such as gene amplification and sequencing to detect and identify microorganisms such as bacteria and fungi in soil, air, and water samples. / 
+Skill 4429: clinical biology: Clinical biology is a medical specialty mentioned in the EU Directive 2005/36/EC. / 
+Skill 6746: conduct genome research: Conduct research on matters relating to the genome, including gene expression, metabolic networks and nucleic acid or protein complexes. / 
+Skill 12328: genetic engineering: Manipulation of the genetic material of an organism using methods that insert new DNA into or remove heritable material from the genome. / 
+Skill 6439: scientific literature: The medium of informing the scientific community, including academic researchers, about the results of scientific research. It constitutes a permanent and cumulative collection of all the findings of scientific research in various fields and at any point in time. / 
+Skill 1580: biological chemistry: Biological chemistry is a medical specialty mentioned in the EU Directive 2005/36/EC. / 
+Skill 615: perform laboratory tests: Carry out tests in a laboratory to produce reliable and precise data to support scientific research and product testing.
+
+Output:
+**Step 1: Extract skill-related text spans**
+- Span 1: "Perform molecular biology techniques"
+- Span 2: "in particular PCR restriction and cloning reactions"
+- Span 3: "and DNA/RNA and protein purification procedures."
+
+**Step 2: Match each span to skill labels**
+- Span 1: "Perform molecular biology techniques" - This directly mentions the field of molecular biology.
+    - Skill 7866: molecular biology: The interactions between the various systems of a cell, the interactions between the different types of genetic material and how these interactions are regulated. (Reason: The span explicitly states the skill of performing techniques within this domain.)
+- Span 2: "in particular PCR restriction and cloning reactions" - These are specific, classic molecular biology and genetic engineering techniques.
+    - Skill 7866: Reason: PCR and cloning are core molecular biology techniques.
+    - Skill 12328: Reason: Cloning reactions are a direct application of genetic engineering.
+- Span 3: "and DNA/RNA and protein purification procedures." - These are fundamental laboratory methods in biosciences.
+    - Skill 5281: Reason: Purification of DNA, RNA, and proteins are quintessential laboratory methods.
+    - Skill 7866: Reason: Purification of nucleic acids and proteins is integral to molecular biology work.
+    - Skill 9268: Reason: These purification procedures are fundamental biomedical techniques.
+    - Skill 615: Reason: Performing purification procedures is a core part of performing laboratory tests to support research.
+
+**Step 3: Compile final list**
+- Removing duplicates, the clearly matched skills are: 7866, 12328, 5281, 9268, 615.
+
+Result: ['7866';'12328';'5281';'9268';'615']
