@@ -1,0 +1,4 @@
+"""Identify all skills in the 'Skill Label Space' that are explicitly mentioned in the provided job description. 
+**Output format**: Return matched skills as a list of IDs in this exact format: ['skill_1_ID';'skill_2_ID'; …], ordered by match score (highest first).
+If no matches exist, return: 'NaN'. 
+"""
