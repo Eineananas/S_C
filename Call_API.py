@@ -5,9 +5,7 @@ from typing import Any, Dict, List, Tuple
 from google import genai
 from google.genai import types
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
-    "/root/autodl-tmp/secure-pottery-493909-t6-156f0d3f7ac6.json"
-)
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "GOOGLE_APPLICATION_CREDENTIALS"
 
 
 class RecruitmentExampleGenerator:
